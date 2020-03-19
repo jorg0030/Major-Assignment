@@ -1,0 +1,115 @@
+---
+title: "Major assignment"
+output: html_document
+---
+
+```{r}
+knitr::opts_chunk$set(echo = TRUE)
+library(devtools)
+library(factoextra)
+library(vegan)
+library(chemometrics)
+library(ggplot2)
+library(cluster)
+```
+```{r}
+Data<-read.csv("PlantData.csv")
+PlotAge<-read.csv("PlotAge.csv")
+```
+
+Perform Hellinger transformation to give low weight to species with many zeros
+```{r}
+
+#Make plot names the row names
+row.names(Data)=Data[,1]; Data[,1]<-NULL
+
+
+#Hellinger transformation as some sites have many zeros
+Data2<-decostand(Data,"hell", na.rm=TRUE)
+```
+
+Run the PCA and plot it. Divide plots by age class
+```{r}
+fit <- prcomp(Data2)
+
+fviz_pca_biplot(fit,habillage=PlotAge$Age.class, label = "var")
+```
+
+```{r}
+#Let's look at the amount of variation explained by each axis
+summary(fit)
+```
+
+Lets test our assumptions
+
+```{r}
+#multivariate normality
+#library("mvnormtest")
+#mshapiro.test(Data2[,1:21])
+
+#How many components to keep?
+screeplot(fit)
+
+#How much variance is explained by each species?
+pcaVarexpl(X=Data2, a=2)
+names(Data2)
+
+
+#Check for outliers
+fit2<-princomp(Data2)
+pcaDiagplot(Data2,fit2,a=4)
+```
+
+Now let's do a PCoA. First, we need to contruct our axes
+
+```{r}
+#Set the seed to stop the values from changing 
+set.seed(74)
+#Create dissimilarity matrix using Manhattan distance
+Matrix<-vegdist(Data2, "manhattan")
+
+#Correct negative Eigenvalues
+PCoA <- wcmdscale(Matrix, eig = TRUE,  add= TRUE) 
+
+#Extract Eigenvalues
+ev<-eigenvals(PCoA)
+#Determine variation explained by each axis
+AxisPer<-cumsum(ev/sum(ev))
+#Extract site scores
+points<-PCoA$points[,1:2]
+#Extract species scores
+sppco <- cor(Data2, PCoA$points)
+#View percet of variation explaine dby each axis
+AxisPer
+#Extract species scores for first two axes
+sppco[,1:2] 
+#Create data frame of species scores
+Variables<-data.frame(sppco) 
+```
+
+Now  lets plot the PCoA Ordination of species scores!
+```{r}
+#Add the first two principle components as columns to my dataset
+Data2$PC1<-points[,1]
+Data2$PC2<-points[,2]
+Data2<-data.frame(Data2)
+
+#Plot it!
+PCoAPlot1<- ggplot(data=Data2,aes(x=PC1,y=PC2)) +
+  geom_point(data=Data2,aes(x=PC1,y=PC2, shape=PlotAge[,2], col=PlotAge[,2]), size=3)+
+   labs(x="PCoA Axis 1 (17.8%)", y = "PCoA Axis 2 (13.8%)")
+PCoAPlot1
+```
+
+
+Now I want to find out how the species scores are influencing the sites. To do this, I will plot the species scores agaisnt the axes.
+```{r}
+PCoAPlot2<-ggplot() + 
+  geom_text(data=Variables, aes(x=Dim1,y=Dim2,label=row.names(Variables),
+                           hjust=0.5*(1-sign(Dim1)),vjust=0.5*(1-sign(Dim2))), size=4)
+
+PCoAPlot2
+```
+
+
+
