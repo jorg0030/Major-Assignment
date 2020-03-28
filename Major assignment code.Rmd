@@ -112,4 +112,8 @@ PCoAPlot2
 ```
 
 
+test for multivariate normality
+```{r}
+apply(Data2, 2 ,shapiro.test)
+```
 
